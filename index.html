@@ -142,7 +142,7 @@
     <!-- ===================================================================== -->
     <!-- ЭКРАН 0: ВХОДНОЕ ОКНО ВВОДА НОМЕРА АВТОБУСА (ДЛЯ НАЧАЛА ПРЕЗЕНТАЦИИ)   -->
     <!-- ===================================================================== -->
-    <section id="screen-input" class="flex-1 flex flex-col justify-between px-6 pt-[max(24px,env(safe-area-inset-top))] pb-[max(24px,env(safe-area-inset-bottom))] bg-[#141414] z-30">
+    <section id="screen-input" class="flex-1 flex flex-col justify-between p-6 safe-top safe-bottom bg-[#141414] z-30">
       <div class="mt-4">
         <!-- Иконка автобуса и заголовок -->
         <div class="flex items-center gap-3.5 mb-6">
@@ -240,10 +240,10 @@
     <!-- ===================================================================== -->
     <!-- ЭКРАН 1: «МОИ ЗАКАЗЫ» (ИСТОРИЯ БИЛЕТОВ — СКРИНШОТ 1)                  -->
     <!-- ===================================================================== -->
-    <section id="screen-orders" class="hidden flex-1 flex flex-col bg-[#141414] pb-[max(24px,env(safe-area-inset-bottom))]">
+    <section id="screen-orders" class="hidden flex-1 flex flex-col bg-[#141414] safe-bottom">
       
       <!-- Верхняя панель навигации -->
-      <header class="sticky top-0 z-20 bg-[#141414]/95 backdrop-blur-md px-4 pb-2 pt-[max(12px,env(safe-area-inset-top))] min-h-[56px] flex items-center justify-between"></header>
+      <header class="sticky top-0 z-20 bg-[#141414]/95 backdrop-blur-md safe-top px-4 h-[56px] flex items-center justify-between">
         <!-- Стрелка назад (возвращает к вводу номера автобуса) -->
         <button
           id="orders-back-btn"
@@ -355,10 +355,10 @@
     <!-- ===================================================================== -->
     <!-- ЭКРАН 2: «МОИ БИЛЕТЫ» (ТАЙМЕР ДО МИЛЛИСЕКУНД + ДЕТАЛИ — СКРИНЫ 2,3,4) -->
     <!-- ===================================================================== -->
-    <section id="screen-ticket" class="hidden flex-1 flex flex-col bg-[#141414] pb-[max(24px,env(safe-area-inset-bottom))]">
+    <section id="screen-ticket" class="hidden flex-1 flex flex-col bg-[#141414] safe-bottom">
       
       <!-- Верхняя часть с темно-синим градиентным свечением -->
-      <div class="ticket-screen-glow pt-[max(12px,env(safe-area-inset-top))] pb-3"></div>
+      <div class="ticket-screen-glow safe-top pb-3">
         <header class="px-4 h-[54px] flex items-center justify-between">
           <!-- Стрелка назад в «Мои заказы» -->
           <button
