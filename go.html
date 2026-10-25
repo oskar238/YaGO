@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  
+  <!-- Настройки PWA для запуска на iPhone во весь экран без рамок Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Яндекс Go" />
+  <meta name="theme-color" content="#141414" />
+
+  <title>Яндекс Go — Мои билеты</title>
+
+  <!-- Подключение Tailwind CSS и шрифта для высоких цифр таймера -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+
+  <style>
+    /* Базовые сбросы и системные шрифты iOS */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #090909;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', sans-serif;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* На мобильных устройствах занимает весь экран, на компьютере в классе — по центру как экран смартфона */
+    .app-shell {
+      width: 100%;
+      max-width: 430px;
+      min-height: 100dvh;
+      margin: 0 auto;
+      background-color: #141414;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      box-shadow: 0 0 50px rgba(0, 0, 0, 0.85);
+    }
+
+    /* Учет челки/Dynamic Island на iPhone в режиме полноэкранного веб-приложения */
+    .safe-top {
+      padding-top: max(12px, env(safe-area-inset-top));
+    }
+
+    .safe-bottom {
+      padding-bottom: max(24px, env(safe-area-inset-bottom));
+    }
+
+    /* Верхнее синее свечение на экране билета (как на скриншотах 2, 3, 4) */
+    .ticket-screen-glow {
+      background: linear-gradient(180deg, #0d3b61 0%, #0d3150 45%, #141414 100%);
+    }
+
+    /* Высокий узкий шрифт для цифр таймера */
+    .timer-digit-box {
+      width: 34px;
+      height: 52px;
+      background-color: #1c1c1c;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Oswald', -apple-system, sans-serif;
+      font-size: 29px;
+      font-weight: 500;
+      line-height: 1;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.25s ease;
+    }
+
+    /* Перфорация билета между верхней синей частью и нижней серой */
+    .ticket-perforation {
+      position: relative;
+      height: 10px;
+      background-color: #2e2e2e;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      z-index: 2;
+    }
+
+    /* Вырезы перфорации по линии отрыва */
+    .notch-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background-color: #141414;
+      transform: translateY(-5px);
+    }
+
+    /* Боковые полукруглые вырезы по краям билета */
+    .side-cutout-left,
+    .side-cutout-right {
+      position: absolute;
+      top: -6px;
+      width: 12px;
+      height: 12px;
+      background-color: #141414;
+      border-radius: 50%;
+      z-index: 3;
+    }
+    .side-cutout-left {
+      left: -6px;
+    }
+    .side-cutout-right {
+      right: -6px;
+    }
+
+    /* Плавное нажатие на карточки и кнопки */
+    .active-scale:active {
+      transform: scale(0.97);
+      opacity: 0.85;
+    }
+
+    /* Скрытие полосы прокрутки для чистого мобильного вида */
+    ::-webkit-scrollbar {
+      width: 0px;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-shell">
+
+    <!-- ===================================================================== -->
+    <!-- ЭКРАН 0: ВХОДНОЕ ОКНО ВВОДА НОМЕРА АВТОБУСА (ДЛЯ НАЧАЛА ПРЕЗЕНТАЦИИ)   -->
+    <!-- ===================================================================== -->
+    <section id="screen-input" class="flex-1 flex flex-col justify-between p-6 safe-top safe-bottom bg-[#141414] z-30">
+      <div class="mt-4">
+        <!-- Иконка автобуса и заголовок -->
+        <div class="flex items-center gap-3.5 mb-6">
+          <div class="w-12 h-12 rounded-[13px] bg-white flex items-center justify-center shadow-md shrink-0">
+            <!-- Векторная 3D-иконка синего автобуса из скриншота -->
+            <svg viewBox="0 0 44 44" class="w-11 h-11">
+              <!-- Тень под автобусом -->
+              <ellipse cx="24" cy="37" rx="14" ry="2.2" fill="#202020" opacity="0.35"/>
+              <!-- Задняя и боковая синяя часть кузова -->
+              <path d="M8 11 C8 9, 10 8, 13 8 L33 8 C35 8, 37 9.5, 37 12 L37 32 C37 33.5, 35.5 34.5, 34 34.5 L11 34.5 C9 34.5, 8 33, 8 31 Z" fill="#1E78D6"/>
+              <!-- Светло-синяя боковая грань -->
+              <path d="M8 11 C8 9.5, 9.2 8.5, 11 8.5 L29 8.5 L29 34.5 L11 34.5 C9.2 34.5, 8 33.2, 8 31.5 Z" fill="#4BA3FF"/>
+              <!-- Боковое темное окно -->
+              <rect x="8" y="13" width="19" height="12.5" rx="1.5" fill="#1C2733"/>
+              <!-- Переднее темное лобовое стекло (справа) -->
+              <path d="M29 8.5 L34.5 8.5 C36 8.5, 37 9.8, 37 11.5 L37 31.5 C37 33.2, 36 34.5, 34.5 34.5 L29 34.5 Z" fill="#191E24"/>
+              <!-- Синяя полоса бампера/кузова снизу -->
+              <path d="M8 26.5 L29 26.5 L29 34.5 L11 34.5 C9.3 34.5, 8 33.2, 8 31.5 Z" fill="#429BFF"/>
+              <!-- Колесо с синим диском -->
+              <circle cx="21.5" cy="34.5" r="4.3" fill="#181D24"/>
+              <circle cx="21.5" cy="34.5" r="2.2" fill="#82C0FF"/>
+              <!-- Маленький белый индикатор/фара -->
+              <circle cx="13.5" cy="31.5" r="1.1" fill="#E8F4FF"/>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-[20px] font-bold tracking-tight text-white">Оплата проезда</h1>
+            <p class="text-[13px] text-[#8E8E93]">Генерация билета Яндекс Go</p>
+          </div>
+        </div>
+
+        <!-- Форма ввода данных для нового билета -->
+        <div class="bg-[#212121] rounded-[20px] p-4 space-y-4 border border-[#2d2d2d]">
+          <div>
+            <label for="bus-number-input" class="block text-[13px] text-[#8E8E93] mb-1.5">
+              Номер автобуса
+            </label>
+            <input
+              id="bus-number-input"
+              type="text"
+              inputmode="text"
+              value="19"
+              placeholder="Например, 19"
+              class="w-full bg-[#141414] text-white text-[18px] font-semibold rounded-[13px] px-4 py-3 border border-[#333333] focus:border-[#0090FF] focus:outline-none transition"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="reg-number-input" class="block text-[12px] text-[#8E8E93] mb-1">
+                Рег. номер
+              </label>
+              <input
+                id="reg-number-input"
+                type="text"
+                inputmode="numeric"
+                value="6201"
+                class="w-full bg-[#141414] text-white text-[15px] rounded-[12px] px-3.5 py-2.5 border border-[#333333] focus:border-[#0090FF] focus:outline-none"
+              />
+            </div>
+            <div>
+              <label for="confirm-code-input" class="block text-[12px] text-[#8E8E93] mb-1">
+                Код подтверждения
+              </label>
+              <input
+                id="confirm-code-input"
+                type="text"
+                inputmode="numeric"
+                value="629513"
+                class="w-full bg-[#141414] text-white text-[15px] rounded-[12px] px-3.5 py-2.5 border border-[#333333] focus:border-[#0090FF] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 border-t border-[#2e2e2e] text-[14px]">
+            <span class="text-[#8E8E93]">Стоимость билета (после акции 1₽)</span>
+            <span class="text-white font-semibold text-[16px]">44 ₽</span>
+          </div>
+        </div>
+
+        <!-- Подсказка для защиты проекта на уроке -->
+        <div class="mt-4 bg-[#1c242b] border border-[#243b50] rounded-[16px] p-3.5 text-[12.5px] text-[#b0c7db] space-y-1.5 leading-relaxed">
+          <div class="font-semibold text-white flex items-center gap-1.5">
+            <span>💡 Фишка для показа учителю на уроке:</span>
+          </div>
+          <p>
+            На экране билета нажми на круговую стрелку <span class="text-white font-semibold">↻</span> в правом верхнем углу — таймер переключится на <span class="text-white font-semibold">последние 3 секунды</span>, чтобы прямо на презентации показать, как истекает час и билет меняет вид на «Срок действия истёк».
+          </p>
+        </div>
+      </div>
+
+      <!-- Кнопка создания билета и перехода в Мои заказы -->
+      <div class="mt-6">
+        <button
+          id="start-ticket-btn"
+          type="button"
+          class="w-full bg-[#0090FF] hover:bg-[#007ce0] active-scale transition text-white font-semibold text-[16px] py-4 rounded-[16px] shadow-lg"
+        >
+          Купить билет за 44 ₽
+        </button>
+      </div>
+    </section>
+
+
+    <!-- ===================================================================== -->
+    <!-- ЭКРАН 1: «МОИ ЗАКАЗЫ» (ИСТОРИЯ БИЛЕТОВ — СКРИНШОТ 1)                  -->
+    <!-- ===================================================================== -->
+    <section id="screen-orders" class="hidden flex-1 flex flex-col bg-[#141414] safe-bottom">
+      
+      <!-- Верхняя панель навигации -->
+      <header class="sticky top-0 z-20 bg-[#141414]/95 backdrop-blur-md safe-top px-4 h-[56px] flex items-center justify-between">
+        <!-- Стрелка назад (возвращает к вводу номера автобуса) -->
+        <button
+          id="orders-back-btn"
+          type="button"
+          aria-label="Назад к вводу автобуса"
+          class="w-10 h-10 -ml-2 flex items-center justify-center text-white active-scale"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M19 12H5M5 12L11.5 5.5M5 12L11.5 18.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <h1 class="text-[17px] font-medium text-white tracking-tight">Мои заказы</h1>
+
+        <!-- Пустой блок для идеальной центровки заголовка -->
+        <div class="w-8"></div>
+      </header>
+
+      <!-- Список заказов -->
+      <div class="px-4 pt-2 pb-8 space-y-5">
+
+        <!-- 1. Самый верхний (только что сгенерированный) билет за 44₽ с кнопками «Билет» и «Помощь» -->
+        <div>
+          <div id="latest-order-date-header" class="text-[#8E8E93] text-[14px] mb-2.5 pl-0.5">
+            22 октября, четверг
+          </div>
+
+          <div class="bg-[#242424] rounded-[18px] p-4">
+            <!-- Верхняя строка карточки -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3.5">
+                <!-- Иконка автобуса (44x44) -->
+                <div class="w-[44px] h-[44px] rounded-[12px] bg-white flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 44 44" class="w-[44px] h-[44px]">
+                    <ellipse cx="24" cy="37" rx="14" ry="2.2" fill="#202020" opacity="0.35"/>
+                    <path d="M8 11 C8 9, 10 8, 13 8 L33 8 C35 8, 37 9.5, 37 12 L37 32 C37 33.5, 35.5 34.5, 34 34.5 L11 34.5 C9 34.5, 8 33, 8 31 Z" fill="#1E78D6"/>
+                    <path d="M8 11 C8 9.5, 9.2 8.5, 11 8.5 L29 8.5 L29 34.5 L11 34.5 C9.2 34.5, 8 33.2, 8 31.5 Z" fill="#4BA3FF"/>
+                    <rect x="8" y="13" width="19" height="12.5" rx="1.5" fill="#1C2733"/>
+                    <path d="M29 8.5 L34.5 8.5 C36 8.5, 37 9.8, 37 11.5 L37 31.5 C37 33.2, 36 34.5, 34.5 34.5 L29 34.5 Z" fill="#191E24"/>
+                    <path d="M8 26.5 L29 26.5 L29 34.5 L11 34.5 C9.3 34.5, 8 33.2, 8 31.5 Z" fill="#429BFF"/>
+                    <circle cx="21.5" cy="34.5" r="4.3" fill="#181D24"/>
+                    <circle cx="21.5" cy="34.5" r="2.2" fill="#82C0FF"/>
+                    <circle cx="13.5" cy="31.5" r="1.1" fill="#E8F4FF"/>
+                  </svg>
+                </div>
+
+                <div>
+                  <div id="latest-order-bus-title" class="text-white text-[16.5px] font-normal leading-snug">
+                    Автобус 19
+                  </div>
+                  <div class="text-[#8E8E93] text-[13.5px] leading-snug">
+                    Поездка по билету завершена
+                  </div>
+                </div>
+              </div>
+
+              <div class="text-white text-[16.5px] font-normal self-center">
+                44₽
+              </div>
+            </div>
+
+            <!-- Две кнопки внутри верхнего заказа: «Билет» и «Помощь» -->
+            <div class="grid grid-cols-2 gap-2 mt-3.5">
+              <!-- Кнопка «Билет» — открывает экран с таймером -->
+              <button
+                id="open-ticket-btn"
+                type="button"
+                class="bg-[#383838] hover:bg-[#424242] active-scale transition rounded-[14px] h-[60px] flex flex-col items-center justify-center gap-1"
+              >
+                <!-- Кастомная иконка QR/билета один-в-один со скриншота -->
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <rect x="3.5" y="3.5" width="7" height="7" rx="1.8" stroke="white" stroke-width="2.1"/>
+                  <rect x="13.5" y="3.5" width="7" height="7" rx="1.8" stroke="white" stroke-width="2.1"/>
+                  <path d="M3.5 15.5 H8.5 C9.6 15.5 10.5 16.4 10.5 17.5 V18.5 C10.5 19.6 9.6 20.5 8.5 20.5 H3.5" stroke="white" stroke-width="2.1" stroke-linecap="round"/>
+                  <path d="M14 14.5 V18.5 C14 19.6 14.9 20.5 16 20.5 H20.5" stroke="white" stroke-width="2.1" stroke-linecap="round"/>
+                  <circle cx="19.5" cy="15" r="1.2" fill="white"/>
+                </svg>
+                <span class="text-white text-[12px] font-medium">Билет</span>
+              </button>
+
+              <!-- Кнопка «Помощь» -->
+              <button
+                id="help-order-btn"
+                type="button"
+                class="bg-[#383838] hover:bg-[#424242] active-scale transition rounded-[14px] h-[60px] flex flex-col items-center justify-center gap-1"
+              >
+                <!-- Иконка наушников поддержки со скриншота -->
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M4.5 13.5V12C4.5 7.85786 7.85786 4.5 12 4.5C16.1421 4.5 19.5 7.85786 19.5 12V13.5" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
+                  <rect x="3.5" y="12.5" width="4.5" height="6.5" rx="2.25" fill="white"/>
+                  <rect x="16" y="12.5" width="4.5" height="6.5" rx="2.25" fill="white"/>
+                  <path d="M18 18.5C17.2 20 15.2 20.8 12.5 20.8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span class="text-white text-[12px] font-medium">Помощь</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Исторические поездки за 1₽ (акция, которая закончилась) -->
+        <div id="historical-orders-container" class="space-y-5">
+          <!-- Генерируется скриптом на основе точного списка из скриншота -->
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ===================================================================== -->
+    <!-- ЭКРАН 2: «МОИ БИЛЕТЫ» (ТАЙМЕР ДО МИЛЛИСЕКУНД + ДЕТАЛИ — СКРИНЫ 2,3,4) -->
+    <!-- ===================================================================== -->
+    <section id="screen-ticket" class="hidden flex-1 flex flex-col bg-[#141414] safe-bottom">
+      
+      <!-- Верхняя часть с темно-синим градиентным свечением -->
+      <div class="ticket-screen-glow safe-top pb-3">
+        <header class="px-4 h-[54px] flex items-center justify-between">
+          <!-- Стрелка назад в «Мои заказы» -->
+          <button
+            id="ticket-back-btn"
+            type="button"
+            aria-label="Назад к заказам"
+            class="w-10 h-10 -ml-2 flex items-center justify-center text-white active-scale"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M19 12H5M5 12L11.5 5.5M5 12L11.5 18.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <!-- Заголовок и подзаголовок -->
+          <div class="text-center">
+            <div class="text-white text-[16px] font-semibold leading-tight">
+              Мои билеты
+            </div>
+            <div class="text-[#8E99A4] text-[12px] leading-tight mt-0.5">
+              Указано местное время
+            </div>
+          </div>
+
+          <!-- Иконка обновления (при нажатии переключает таймер на последние 3 секунды для показа истечения билета на уроке) -->
+          <button
+            id="ticket-refresh-btn"
+            type="button"
+            title="Переключить режим таймера (1 час / 3 сек до конца)"
+            class="w-10 h-10 -mr-2 flex items-center justify-center text-white active-scale"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5V9H8" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4 13A8.1 8.1 0 0 0 19.5 15.5" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </header>
+      </div>
+
+      <!-- Основной контент экрана билета -->
+      <div class="px-4 pt-1 pb-10">
+
+        <!-- КАРТОЧКА БИЛЕТА (С ПЕРФОРАЦИЕЙ ПОСЕРЕДИНЕ) -->
+        <div class="mx-[14px] mt-1 select-none">
+          
+          <!-- Верхняя синяя часть билета -->
+          <div
+            id="ticket-top-card"
+            class="h-[132px] rounded-t-[24px] rounded-b-[5px] bg-[#0090FF] flex items-center justify-center transition-colors duration-300"
+          >
+            <span
+              id="ticket-bus-title"
+              class="text-white text-[24px] font-bold tracking-tight transition-colors duration-300"
+            >
+              Автобус 19
+            </span>
+          </div>
+
+          <!-- Разделительный зазор (проявляется сильнее, когда срок действия истёк, как на скрине 2) -->
+          <div id="ticket-expired-gap" class="h-0 bg-[#141414] transition-all duration-300"></div>
+
+          <!-- Линия отрыва с полукруглыми вырезами -->
+          <div class="ticket-perforation">
+            <div class="side-cutout-left"></div>
+            <div class="notch-dot"></div>
+            <div class="notch-dot"></div>
+            <div class="notch-dot"></div>
+            <div class="notch-dot"></div>
+            <div class="notch-dot"></div>
+            <div class="notch-dot"></div>
+            <div class="notch-dot"></div>
+            <div class="notch-dot"></div>
+            <div class="notch-dot"></div>
+            <div class="side-cutout-right"></div>
+          </div>
+
+          <!-- Нижняя серая часть билета с таймером -->
+          <div class="bg-[#2E2E2E] h-[282px] rounded-b-[24px] flex flex-col items-center px-4">
+            
+            <!-- Статус билета («Срок действия билета» или «Срок действия истёк») -->
+            <div
+              id="ticket-status-label"
+              class="mt-[58px] text-[19.5px] font-bold text-white tracking-tight transition-colors duration-300"
+            >
+              Срок действия билета
+            </div>
+
+            <!-- Блок таймера с миллисекундами: ММ : СС : МС -->
+            <div class="mt-[18px] flex items-start justify-center gap-2">
+              
+              <!-- Минуты -->
+              <div class="flex flex-col items-center">
+                <div class="flex gap-[4px]">
+                  <div id="m1" class="timer-digit-box text-white">5</div>
+                  <div id="m2" class="timer-digit-box text-white">9</div>
+                </div>
+                <span class="text-[#8E8E93] text-[12px] mt-1.5">мин</span>
+              </div>
+
+              <!-- Разделитель двоеточие -->
+              <div id="colon-1" class="h-[52px] flex flex-col justify-center gap-2.5 px-0.5">
+                <span class="w-[4px] h-[4px] rounded-full bg-[#D4D4D4] block"></span>
+                <span class="w-[4px] h-[4px] rounded-full bg-[#D4D4D4] block"></span>
+              </div>
+
+              <!-- Секунды -->
+              <div class="flex flex-col items-center">
+                <div class="flex gap-[4px]">
+                  <div id="s1" class="timer-digit-box text-white">5</div>
+                  <div id="s2" class="timer-digit-box text-white">9</div>
+                </div>
+                <span class="text-[#8E8E93] text-[12px] mt-1.5">сек</span>
+              </div>
+
+              <!-- Разделитель двоеточие -->
+              <div id="colon-2" class="h-[52px] flex flex-col justify-center gap-2.5 px-0.5">
+                <span class="w-[4px] h-[4px] rounded-full bg-[#D4D4D4] block"></span>
+                <span class="w-[4px] h-[4px] rounded-full bg-[#D4D4D4] block"></span>
+              </div>
+
+              <!-- Миллисекунды -->
+              <div class="flex flex-col items-center">
+                <div class="flex gap-[4px]">
+                  <div id="ms1" class="timer-digit-box text-white">9</div>
+                  <div id="ms2" class="timer-digit-box text-white">9</div>
+                </div>
+                <span class="text-[#8E8E93] text-[12px] mt-1.5">мс</span>
+              </div>
+
+            </div>
+
+            <!-- Подпись внизу билета (скрывается, когда таймер истёк) -->
+            <div
+              id="ticket-controller-hint"
+              class="mt-auto mb-[34px] text-[#8E8E93] text-[13.5px] transition-opacity duration-300"
+            >
+              Покажите экран контролеру
+            </div>
+
+          </div>
+        </div>
+
+
+        <!-- СЕКЦИЯ «ДЕТАЛИ» (СКРИНШОТЫ 2, 3, 4) -->
+        <div class="mt-7">
+          <h2 class="text-white text-[19.5px] font-bold mb-2">Детали</h2>
+
+          <div class="divide-y divide-[#272727]">
+
+            <!-- 1. Код подтверждения -->
+            <div class="flex items-center gap-4 py-3.5">
+              <div class="w-7 flex justify-center shrink-0">
+                <!-- Иконка двухцветного щита -->
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 3L4.5 6.2V11.8C4.5 16.6 7.7 20.9 12 22C16.3 20.9 19.5 16.6 19.5 11.8V6.2L12 3Z" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
+                  <path d="M12 3L4.5 6.2V11.8C4.5 16.6 7.7 20.9 12 22V3Z" fill="white"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-[#8E8E93] text-[13px]">Код подтверждения</div>
+                <div id="detail-confirm-code" class="text-white text-[15.5px] mt-0.5">629513</div>
+              </div>
+            </div>
+
+            <!-- 2. Регистрационный номер -->
+            <div class="flex items-center gap-4 py-3.5">
+              <div class="w-7 flex justify-center shrink-0">
+                <!-- Белая плашка с ??? внутри -->
+                <svg width="25" height="18" viewBox="0 0 26 18" fill="none">
+                  <rect x="0.5" y="1" width="25" height="16" rx="3.5" fill="white"/>
+                  <text x="13" y="12.5" text-anchor="middle" fill="#141414" font-size="10.5" font-weight="800" font-family="Arial, sans-serif">???</text>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-[#8E8E93] text-[13px]">Регистрационный номер</div>
+                <div id="detail-reg-number" class="text-white text-[15.5px] mt-0.5">6201</div>
+              </div>
+            </div>
+
+            <!-- 3. Перевозчик -->
+            <div class="flex items-center gap-4 py-3.5">
+              <div class="w-7 flex justify-center shrink-0">
+                <!-- Иконка руля -->
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="white" stroke-width="2"/>
+                  <circle cx="12" cy="12" r="2.2" fill="white"/>
+                  <path d="M3.5 10.5L9.8 11.5M20.5 10.5L14.2 11.5M12 14.2V21" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-[#8E8E93] text-[13px]">Перевозчик</div>
+                <div class="text-white text-[15.5px] mt-0.5">АО ПАТП №1</div>
+              </div>
+            </div>
+
+            <!-- 4. Действует до -->
+            <div class="flex items-center gap-4 py-3.5">
+              <div class="w-7 flex justify-center shrink-0">
+                <!-- Залитая белая иконка часов -->
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9.5" fill="white"/>
+                  <path d="M12 7V12.2L15.2 14.2" stroke="#141414" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-[#8E8E93] text-[13px]">Действует до</div>
+                <div id="detail-valid-until" class="text-white text-[15.5px] mt-0.5">
+                  22 октября 2026г. до 15:44
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. Направление -->
+            <div class="flex items-center gap-4 py-3.5">
+              <div class="w-7 flex justify-center shrink-0">
+                <!-- Иконка встречных вертикальных стрелок ↑↓ -->
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M8 19V5M8 5L4.5 8.5M8 5L11.5 8.5" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M16 5V19M16 19L12.5 15.5M16 19L19.5 15.5" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-[#8E8E93] text-[13px]">Направление</div>
+                <div class="text-white text-[15.5px] mt-0.5">В одну сторону</div>
+              </div>
+            </div>
+
+            <!-- 6. Количество билетов -->
+            <div class="flex items-center gap-4 py-3.5">
+              <div class="w-7 flex justify-center shrink-0">
+                <!-- Белая иконка билета с точками отрыва -->
+                <svg width="23" height="18" viewBox="0 0 24 18" fill="none">
+                  <path d="M2 3.5C2 2.4 2.9 1.5 4 1.5H20C21.1 1.5 22 2.4 22 3.5V6.2C20.5 6.2 19.3 7.4 19.3 9C19.3 10.6 20.5 11.8 22 11.8V14.5C22 15.6 21.1 16.5 20 16.5H4C2.9 16.5 2 15.6 2 14.5V11.8C3.5 11.8 4.7 10.6 4.7 9C4.7 7.4 3.5 6.2 2 6.2V3.5Z" fill="white"/>
+                  <circle cx="9.5" cy="5.5" r="1.1" fill="#141414"/>
+                  <circle cx="9.5" cy="9" r="1.1" fill="#141414"/>
+                  <circle cx="9.5" cy="12.5" r="1.1" fill="#141414"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-[#8E8E93] text-[13px]">Количество билетов</div>
+                <div class="text-white text-[15.5px] mt-0.5">1</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+
+        <!-- СЕКЦИЯ «СТОИМОСТЬ ЗАКАЗА» (СКРИНШОТ 4 / image_3.png) -->
+        <div class="mt-6">
+          <h2 class="text-white text-[19.5px] font-bold mb-3.5">Стоимость заказа</h2>
+
+          <!-- Карточка «Итого 44₽» -->
+          <div class="bg-[#262626] rounded-[18px] px-4 py-[18px] flex items-center justify-between">
+            <span class="text-white text-[16px] font-semibold">Итого</span>
+            <span class="text-white text-[21px] font-bold">44₽</span>
+          </div>
+
+          <!-- Карточка «Получить чек» / «Обратиться в поддержку» -->
+          <div class="bg-[#262626] rounded-[18px] mt-3 overflow-hidden">
+            
+            <!-- Получить чек -->
+            <button
+              id="receipt-btn"
+              type="button"
+              class="w-full px-4 py-4 flex items-center gap-4 text-left active-scale transition"
+            >
+              <div class="w-7 flex justify-center shrink-0">
+                <!-- Иконка чека -->
+                <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
+                  <path d="M3 2.5C3 1.7 3.7 1 4.5 1H15.5C16.3 1 17 1.7 17 2.5V20.2L14.3 18.4L11.8 20.2L10 18.4L8.2 20.2L5.7 18.4L3 20.2V2.5Z" fill="white"/>
+                  <path d="M6.5 6.5H13.5M6.5 10.5H13.5M6.5 14.5H10.5" stroke="#262626" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <span class="text-white text-[15.5px] flex-1">Получить чек</span>
+            </button>
+
+            <!-- Разделительная полоса -->
+            <div class="ml-15 border-t border-[#363636] ml-[60px] mr-4"></div>
+
+            <!-- Обратиться в поддержку -->
+            <button
+              id="support-btn"
+              type="button"
+              class="w-full px-4 py-4 flex items-center gap-4 text-left active-scale transition"
+            >
+              <div class="w-7 flex justify-center shrink-0">
+                <!-- Иконка наушников поддержки -->
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none">
+                  <path d="M4.5 13.5V12C4.5 7.85786 7.85786 4.5 12 4.5C16.1421 4.5 19.5 7.85786 19.5 12V13.5" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
+                  <rect x="3.5" y="12.5" width="4.5" height="6.5" rx="2.25" fill="white"/>
+                  <rect x="16" y="12.5" width="4.5" height="6.5" rx="2.25" fill="white"/>
+                  <path d="M18 18.5C17.2 20 15.2 20.8 12.5 20.8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <span class="text-white text-[15.5px] flex-1">Обратиться в поддержку</span>
+            </button>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Ненавязчивое всплывающее уведомление (вместо системного alert) -->
+    <div
+      id="toast-message"
+      class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-[#333333]/95 text-white text-[13.5px] px-4 py-2.5 rounded-full shadow-xl opacity-0 pointer-events-none transition-opacity duration-200 z-50 whitespace-nowrap"
+    >
+      Чек отправлен на почту
+    </div>
+
+  </div>
+
+  <script>
+    // =========================================================================
+    // ИСТОРИЯ ПОЕЗДОК ЗА 1 РУБЛЬ (ПО ЗАВЕРШИВШЕЙСЯ АКЦИИ — КАК НА СКРИНШОТЕ 1)
+    // =========================================================================
+    const historicalOrders = [
+      { dateHeader: '13 октября, вторник', busNumber: '12', price: '1₽' },
+      { dateHeader: '12 октября, понедельник', busNumber: '19', price: '1₽' },
+      { dateHeader: '10 октября, суббота', busNumber: '42', price: '1₽' },
+      { dateHeader: '07 октября, среда', busNumber: '42', price: '1₽' },
+      { dateHeader: '06 октября, вторник', busNumber: '12', price: '1₽' },
+      { dateHeader: '05 октября, понедельник', busNumber: '16', price: '1₽' }
+    ];
+
+    // SVG-иконка автобуса для карточек истории
+    const busIconSvg = `
+      <svg viewBox="0 0 44 44" class="w-[44px] h-[44px]">
+        <ellipse cx="24" cy="37" rx="14" ry="2.2" fill="#202020" opacity="0.35"/>
+        <path d="M8 11 C8 9, 10 8, 13 8 L33 8 C35 8, 37 9.5, 37 12 L37 32 C37 33.5, 35.5 34.5, 34 34.5 L11 34.5 C9 34.5, 8 33, 8 31 Z" fill="#1E78D6"/>
+        <path d="M8 11 C8 9.5, 9.2 8.5, 11 8.5 L29 8.5 L29 34.5 L11 34.5 C9.2 34.5, 8 33.2, 8 31.5 Z" fill="#4BA3FF"/>
+        <rect x="8" y="13" width="19" height="12.5" rx="1.5" fill="#1C2733"/>
+        <path d="M29 8.5 L34.5 8.5 C36 8.5, 37 9.8, 37 11.5 L37 31.5 C37 33.2, 36 34.5, 34.5 34.5 L29 34.5 Z" fill="#191E24"/>
+        <path d="M8 26.5 L29 26.5 L29 34.5 L11 34.5 C9.3 34.5, 8 33.2, 8 31.5 Z" fill="#429BFF"/>
+        <circle cx="21.5" cy="34.5" r="4.3" fill="#181D24"/>
+        <circle cx="21.5" cy="34.5" r="2.2" fill="#82C0FF"/>
+        <circle cx="13.5" cy="31.5" r="1.1" fill="#E8F4FF"/>
+      </svg>
+    `;
+
+    // Отрисовка списка прошлых поездок за 1₽
+    function renderHistoricalOrders() {
+      const container = document.getElementById('historical-orders-container');
+      container.innerHTML = historicalOrders.map(item => `
+        <div>
+          <div class="text-[#8E8E93] text-[14px] mb-2.5 pl-0.5">
+            ${item.dateHeader}
+          </div>
+          <div class="bg-[#242424] rounded-[18px] px-4 py-3.5 flex items-center justify-between">
+            <div class="flex items-center gap-3.5">
+              <div class="w-[44px] h-[44px] rounded-[12px] bg-white flex items-center justify-center shrink-0">
+                ${busIconSvg}
+              </div>
+              <div>
+                <div class="text-white text-[16.5px] font-normal leading-snug">
+                  Автобус ${item.busNumber}
+                </div>
+                <div class="text-[#8E8E93] text-[13.5px] leading-snug">
+                  Поездка по билету завершена
+                </div>
+              </div>
+            </div>
+            <div class="text-white text-[16.5px] font-normal">
+              ${item.price}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // =========================================================================
+    // ФОРМАТИРОВАНИЕ ДАТЫ И ВРЕМЕНИ НА РУССКОМ ЯЗЫКЕ
+    // =========================================================================
+    const monthsGenitive = [
+      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+    ];
+    const weekdaysFull = [
+      'воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'
+    ];
+
+    function pad2(num) {
+      return String(num).padStart(2, '0');
+    }
+
+    function formatOrderHeaderDate(date) {
+      const day = pad2(date.getDate());
+      const month = monthsGenitive[date.getMonth()];
+      const weekday = weekdaysFull[date.getDay()];
+      return `${day} ${month}, ${weekday}`;
+    }
+
+    function formatValidUntilDate(date) {
+      const day = pad2(date.getDate());
+      const month = monthsGenitive[date.getMonth()];
+      const year = date.getFullYear();
+      const hours = pad2(date.getHours());
+      const minutes = pad2(date.getMinutes());
+      return `${day} ${month} ${year}г. до ${hours}:${minutes}`;
+    }
+
+    // =========================================================================
+    // ЛОГИКА ТАЙМЕРА С МИЛЛИСЕКУНДАМИ (ОТ 1 ЧАСА ДО 00:00:00)
+    // =========================================================================
+    let timerEndTime = 0;
+    let animationFrameId = null;
+    let isExpiredState = false;
+    let demoQuickExpireMode = false;
+
+    const digitElements = {
+      m1: document.getElementById('m1'),
+      m2: document.getElementById('m2'),
+      s1: document.getElementById('s1'),
+      s2: document.getElementById('s2'),
+      ms1: document.getElementById('ms1'),
+      ms2: document.getElementById('ms2')
+    };
+
+    const ticketTopCard = document.getElementById('ticket-top-card');
+    const ticketBusTitle = document.getElementById('ticket-bus-title');
+    const ticketStatusLabel = document.getElementById('ticket-status-label');
+    const ticketControllerHint = document.getElementById('ticket-controller-hint');
+    const ticketExpiredGap = document.getElementById('ticket-expired-gap');
+    const colon1 = document.getElementById('colon-1');
+    const colon2 = document.getElementById('colon-2');
+
+    // Переключение визуального оформления между активным билетом (скрин 3) и истекшим (скрин 2)
+    function applyTicketVisualState(expired) {
+      isExpiredState = expired;
+
+      if (expired) {
+        // Истекший билет (темно-синяя плашка, приглушенные цифры, «Срок действия истёк»)
+        ticketTopCard.className = 'h-[132px] rounded-t-[24px] rounded-b-[5px] bg-[#165582] flex items-center justify-center transition-colors duration-300';
+        ticketBusTitle.className = 'text-[#8FA4B8] text-[24px] font-bold tracking-tight transition-colors duration-300';
+        ticketStatusLabel.textContent = 'Срок действия истёк';
+        ticketStatusLabel.className = 'mt-[64px] text-[19.5px] font-bold text-[#8E8E93] tracking-tight transition-colors duration-300';
+        ticketControllerHint.style.opacity = '0';
+        ticketExpiredGap.className = 'h-[7px] bg-[#141414] transition-all duration-300';
+
+        Object.values(digitElements).forEach(el => {
+          el.classList.remove('text-white');
+          el.classList.add('text-[#8A8A8E]');
+        });
+
+        [colon1, colon2].forEach(colon => {
+          colon.querySelectorAll('span').forEach(dot => {
+            dot.className = 'w-[4px] h-[4px] rounded-full bg-[#8A8A8E] block';
+          });
+        });
+      } else {
+        // Активный билет (ярко-синяя плашка, белые цифры, «Срок действия билета»)
+        ticketTopCard.className = 'h-[132px] rounded-t-[24px] rounded-b-[5px] bg-[#0090FF] flex items-center justify-center transition-colors duration-300';
+        ticketBusTitle.className = 'text-white text-[24px] font-bold tracking-tight transition-colors duration-300';
+        ticketStatusLabel.textContent = 'Срок действия билета';
+        ticketStatusLabel.className = 'mt-[58px] text-[19.5px] font-bold text-white tracking-tight transition-colors duration-300';
+        ticketControllerHint.style.opacity = '1';
+        ticketExpiredGap.className = 'h-0 bg-[#141414] transition-all duration-300';
+
+        Object.values(digitElements).forEach(el => {
+          el.classList.remove('text-[#8A8A8E]');
+          el.classList.add('text-white');
+        });
+
+        [colon1, colon2].forEach(colon => {
+          colon.querySelectorAll('span').forEach(dot => {
+            dot.className = 'w-[4px] h-[4px] rounded-full bg-[#D4D4D4] block';
+          });
+        });
+      }
+    }
+
+    function updateTimerDigits(minStr, secStr, msStr) {
+      digitElements.m1.textContent = minStr[0];
+      digitElements.m2.textContent = minStr[1];
+      digitElements.s1.textContent = secStr[0];
+      digitElements.s2.textContent = secStr[1];
+      digitElements.ms1.textContent = msStr[0];
+      digitElements.ms2.textContent = msStr[1];
+    }
+
+    function tickTimer() {
+      const now = performance.now();
+      const remainingMs = timerEndTime - now;
+
+      if (remainingMs <= 0) {
+        updateTimerDigits('00', '00', '00');
+        if (!isExpiredState) {
+          applyTicketVisualState(true);
+        }
+        return;
+      }
+
+      const totalSeconds = Math.floor(remainingMs / 1000);
+      const minutes = Math.min(59, Math.floor(totalSeconds / 60));
+      const seconds = totalSeconds % 60;
+      const centiseconds = Math.floor((remainingMs % 1000) / 10);
+
+      updateTimerDigits(pad2(minutes), pad2(seconds), pad2(centiseconds));
+      animationFrameId = requestAnimationFrame(tickTimer);
+    }
+
+    function startCountdown(durationMs) {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      applyTicketVisualState(false);
+      timerEndTime = performance.now() + durationMs;
+      animationFrameId = requestAnimationFrame(tickTimer);
+    }
+
+    // =========================================================================
+    // НАВИГАЦИЯ МЕЖДУ ЭКРАНАМИ И СОЗДАНИЕ НОВОГО БИЛЕТА
+    // =========================================================================
+    const screenInput = document.getElementById('screen-input');
+    const screenOrders = document.getElementById('screen-orders');
+    const screenTicket = document.getElementById('screen-ticket');
+
+    function showScreen(targetScreen) {
+      screenInput.classList.add('hidden');
+      screenOrders.classList.add('hidden');
+      screenTicket.classList.add('hidden');
+      targetScreen.classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    // Нажатие «Купить билет за 44 ₽» на стартовом экране
+    document.getElementById('start-ticket-btn').addEventListener('click', () => {
+      const busNum = (document.getElementById('bus-number-input').value || '19').trim();
+      const regNum = (document.getElementById('reg-number-input').value || '6201').trim();
+      const confirmCode = (document.getElementById('confirm-code-input').value || '629513').trim();
+
+      const now = new Date();
+      const validUntil = new Date(now.getTime() + 60 * 60 * 1000);
+
+      // Обновляем данные в истории и в самом билете
+      document.getElementById('latest-order-date-header').textContent = formatOrderHeaderDate(now);
+      document.getElementById('latest-order-bus-title').textContent = `Автобус ${busNum}`;
+      document.getElementById('ticket-bus-title').textContent = `Автобус ${busNum}`;
+      document.getElementById('detail-reg-number').textContent = regNum;
+      document.getElementById('detail-confirm-code').textContent = confirmCode;
+      document.getElementById('detail-valid-until').textContent = formatValidUntilDate(validUntil);
+
+      // Запускаем таймер ровно на 1 час (60 минут)
+      demoQuickExpireMode = false;
+      startCountdown(60 * 60 * 1000);
+
+      // Открываем первое окно «Мои заказы» с историей и новым билетом
+      showScreen(screenOrders);
+    });
+
+    // Кнопка «Билет» внутри верхнего заказа -> открывает экран билета с таймером
+    document.getElementById('open-ticket-btn').addEventListener('click', () => {
+      showScreen(screenTicket);
+    });
+
+    // Стрелка «Назад» из окна «Мои билеты» -> возвращает в «Мои заказы»
+    document.getElementById('ticket-back-btn').addEventListener('click', () => {
+      showScreen(screenOrders);
+    });
+
+    // Стрелка «Назад» из «Мои заказы» -> возвращает к вводу номера автобуса
+    document.getElementById('orders-back-btn').addEventListener('click', () => {
+      showScreen(screenInput);
+    });
+
+    // Круглая кнопка обновления ↻ в правом верхнем углу билета:
+    // переключает между 3.5 секундами (чтобы показать учителю истечение срока) и 1 часом
+    document.getElementById('ticket-refresh-btn').addEventListener('click', () => {
+      if (!demoQuickExpireMode && !isExpiredState) {
+        demoQuickExpireMode = true;
+        startCountdown(3500); // 3.5 секунды до истечения
+      } else {
+        demoQuickExpireMode = false;
+        startCountdown(60 * 60 * 1000); // Сброс обратно на 1 час
+      }
+    });
+
+    // Ненавязчивое уведомление для вспомогательных кнопок («Помощь», «Получить чек»)
+    let toastTimeout = null;
+    function showToast(text) {
+      const toast = document.getElementById('toast-message');
+      toast.textContent = text;
+      toast.style.opacity = '1';
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.style.opacity = '0';
+      }, 2200);
+    }
+
+    document.getElementById('help-order-btn').addEventListener('click', () => {
+      showToast('Служба поддержки Яндекс Go');
+    });
+    document.getElementById('receipt-btn').addEventListener('click', () => {
+      showToast('Чек по заказу (44₽) сформирован');
+    });
+    document.getElementById('support-btn').addEventListener('click', () => {
+      showToast('Чат поддержки открыт');
+    });
+
+    // Инициализация истории поездок при загрузке
+    renderHistoricalOrders();
+  </script>
+</body>
+</html>
